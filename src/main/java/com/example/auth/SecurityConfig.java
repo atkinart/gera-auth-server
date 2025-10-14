@@ -77,13 +77,8 @@ public class SecurityConfig {
     }
 
     @Bean
-    org.springframework.security.provisioning.UserDetailsManager users(DataSource ds, PasswordEncoder pe) {
-        var jdbc = new org.springframework.security.provisioning.JdbcUserDetailsManager(ds);
-        if (!jdbc.userExists("admin")) {
-            jdbc.createUser(org.springframework.security.core.userdetails.User
-                    .withUsername("admin").password(pe.encode("admin")).roles("ADMIN").build());
-        }
-        return jdbc;
+    org.springframework.security.provisioning.UserDetailsManager users(DataSource ds) {
+        return new org.springframework.security.provisioning.JdbcUserDetailsManager(ds);
     }
 
     @Bean PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(); }
