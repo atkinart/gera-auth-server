@@ -89,15 +89,18 @@ public class SecurityConfig {
     @Bean PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(); }
 
     @Bean RegisteredClientRepository registeredClientRepository(DataSource ds) {
-        return new JdbcRegisteredClientRepository(ds);
+        var jdbc = new org.springframework.jdbc.core.JdbcTemplate(ds);
+        return new JdbcRegisteredClientRepository(jdbc);
     }
 
     @Bean OAuth2AuthorizationService authorizationService(DataSource ds, RegisteredClientRepository r) {
-        return new org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationService(ds, r);
+        var jdbc = new org.springframework.jdbc.core.JdbcTemplate(ds);
+        return new org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationService(jdbc, r);
     }
 
     @Bean OAuth2AuthorizationConsentService consentService(DataSource ds, RegisteredClientRepository r) {
-        return new org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationConsentService(ds, r);
+        var jdbc = new org.springframework.jdbc.core.JdbcTemplate(ds);
+        return new org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationConsentService(jdbc, r);
     }
 
     @Bean
