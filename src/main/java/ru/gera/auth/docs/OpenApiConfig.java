@@ -52,7 +52,9 @@ public class OpenApiConfig {
                 .addSecuritySchemes("BasicAuth", basic)
                 .addSecuritySchemes("BearerAuth", bearer)
                 .addSchemas("TokenResponse", tokenResponseSchema())
-                .addSchemas("IntrospectionResponse", introspectionResponseSchema());
+                .addSchemas("IntrospectionResponse", introspectionResponseSchema())
+                .addSchemas("RegistrationRequest", registrationRequestSchema())
+                .addSchemas("RegistrationResponse", registrationResponseSchema());
 
         // Paths (основные точки интеграции)
         Paths paths = new Paths()
@@ -87,6 +89,16 @@ public class OpenApiConfig {
                         .summary("OAuth2 Token Revocation")
                         .requestBody(formRB("token, token_type_hint, client_id (for public)"))
                         .responses(resp(Map.of("200", new ApiResponse().description("Revoked"))))
+                ))
+                .addPathItem("/api/auth/register", new PathItem().post(new Operation()
+                        .summary("User registration")
+                        .description("Creates a new user with role USER; CSRF is disabled for this endpoint.")
+                        .requestBody(jsonRB(ref("RegistrationRequest")))
+                        .responses(resp(Map.of(
+                                "201", new ApiResponse().description("Created").content(new Content().addMediaType("application/json", new MediaType().schema(ref("RegistrationResponse")))) ,
+                                "400", new ApiResponse().description("Validation error"),
+                                "409", new ApiResponse().description("Conflict: username or email exists")
+                        )))
                 ))
                 .addPathItem("/userinfo", new PathItem().get(new Operation()
                         .summary("OIDC UserInfo")
@@ -135,6 +147,11 @@ public class OpenApiConfig {
                         new MediaType().schema(new Schema<>().type("object").description("Fields: " + fields))));
     }
 
+    private static RequestBody jsonRB(Schema<?> schema) {
+        return new RequestBody().required(true)
+                .content(new Content().addMediaType("application/json", new MediaType().schema(schema)));
+    }
+
     private static ApiResponses resp(Map<String, ApiResponse> map) {
         ApiResponses rs = new ApiResponses();
         map.forEach(rs::addApiResponse);
@@ -144,5 +161,20 @@ public class OpenApiConfig {
     private static Schema<?> ref(String name) {
         return new Schema<>().$ref("#/components/schemas/" + name);
     }
-}
 
+    private static Schema<?> registrationRequestSchema() {
+        return new Schema<>()
+                .type("object")
+                .addProperties("username", new Schema<>().type("string").minLength(3).maxLength(50))
+                .addProperties("password", new Schema<>().type("string").minLength(8))
+                .addProperties("email", new Schema<>().type("string").format("email"))
+                .required(List.of("username", "password", "email"));
+    }
+
+    private static Schema<?> registrationResponseSchema() {
+        return new Schema<>()
+                .type("object")
+                .addProperties("username", new Schema<>().type("string"))
+                .addProperties("email", new Schema<>().type("string"));
+    }
+}

@@ -82,6 +82,50 @@ docker run --rm -p 9000:9000 --name auth_server \
 - `/oauth2/introspect` — интроспекция (Basic auth: confidential‑клиент).
 - `/oauth2/revoke` — отзыв токена (Basic/confidential или `client_id` для public, если разрешено).
 
+### Регистрация пользователей
+
+- Эндпоинт: `POST /api/auth/register`
+- Доступ: открыт (`permitAll`), CSRF отключён для этого пути.
+- Тело запроса (JSON):
+
+```json
+{
+  "username": "alice",
+  "password": "Password1!",
+  "email": "alice@example.com"
+}
+```
+
+- Ограничения:
+  - `username`: [a-zA-Z0-9._-], 3..50
+  - `password`: 8..100
+  - `email`: валидный email, уникален
+
+- Ответы:
+  - 201 Created: `{ "username": "alice", "email": "alice@example.com" }`
+  - 409 Conflict: username/email заняты
+  - 400 Bad Request: ошибка валидации
+
+- Пример cURL:
+
+```bash
+curl -i -X POST http://localhost:9000/api/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"alice","password":"Password1!","email":"alice@example.com"}'
+```
+
+- Пример из React (fetch):
+
+```ts
+await fetch('/api/auth/register', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ username, password, email })
+});
+```
+
+Эндпоинт описан также в Swagger UI.
+
 ## Интеграция React (PKCE)
 
 1) Создайте публичный клиент в AS (ClientInitializer уже добавляет `spa` по умолчанию).
