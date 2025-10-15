@@ -1,0 +1,29 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-create-oauth2-tables
+      author: codex
+      changes:
+        - sqlFile:
+            path: sql/001-oauth2-tables.sql
+            relativeToChangelogFile: true
+  - changeSet:
+      id: 002-create-users-tables
+      author: codex
+      changes:
+        - sqlFile:
+            path: sql/002-users.sql
+            relativeToChangelogFile: true
+  - changeSet:
+      id: 003-add-email-to-users
+      author: codex
+      changes:
+        - sqlFile:
+            path: sql/003-add-email.sql
+            relativeToChangelogFile: true
+  - changeSet:
+      id: 004-seed-admin-user
+      author: codex
+      changes:
+        - sqlFile:
+            path: sql/004-seed-admin.sql
+            relativeToChangelogFile: true

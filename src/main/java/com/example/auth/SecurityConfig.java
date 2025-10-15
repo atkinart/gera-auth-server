@@ -20,6 +20,7 @@ import org.springframework.security.oauth2.server.authorization.client.JdbcRegis
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
+import org.springframework.security.oauth2.server.authorization.web.authentication.PublicClientAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
@@ -46,7 +47,10 @@ public class SecurityConfig {
     SecurityFilterChain asFilterChain(HttpSecurity http) throws Exception {
         var as = OAuth2AuthorizationServerConfigurer.authorizationServer();
         http.securityMatcher(as.getEndpointsMatcher())
-                .with(as, config -> config.oidc(Customizer.withDefaults()))
+                .with(as, config -> config
+                        .oidc(Customizer.withDefaults())
+                        .clientAuthentication(ca -> ca.authenticationConverter(new PublicClientAuthenticationConverter()))
+                )
                 .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
                 .exceptionHandling(ex -> ex.defaultAuthenticationEntryPointFor(
                         new LoginUrlAuthenticationEntryPoint("/login"),
@@ -81,7 +85,9 @@ public class SecurityConfig {
         return new org.springframework.security.provisioning.JdbcUserDetailsManager(ds);
     }
 
-    @Bean PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(); }
+    @Bean PasswordEncoder passwordEncoder() {
+        return org.springframework.security.crypto.factory.PasswordEncoderFactories.createDelegatingPasswordEncoder();
+    }
 
     @Bean RegisteredClientRepository registeredClientRepository(DataSource ds) {
         var jdbc = new org.springframework.jdbc.core.JdbcTemplate(ds);

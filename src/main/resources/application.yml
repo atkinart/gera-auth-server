@@ -11,14 +11,8 @@ spring:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/sas}
     username: ${SPRING_DATASOURCE_USERNAME:sas}
     password: ${SPRING_DATASOURCE_PASSWORD:sas}
-  sql:
-    init:
-      mode: always
-      schema-locations:
-        - classpath:org/springframework/security/oauth2/server/authorization/client/oauth2-registered-client-schema.sql
-        - classpath:org/springframework/security/oauth2/server/authorization/oauth2-authorization-schema.sql
-        - classpath:org/springframework/security/oauth2/server/authorization/oauth2-authorization-consent-schema.sql
-        - classpath:db/schema-users.sql
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.yaml
 
 management:
   endpoints:

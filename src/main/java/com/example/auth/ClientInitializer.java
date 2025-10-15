@@ -2,15 +2,12 @@ package com.example.auth;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.security.oauth2.core.oidc.OidcScopes;
-import org.springframework.security.oauth2.server.authorization.client.ClientSettings;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
+import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
 import org.springframework.security.oauth2.server.authorization.settings.TokenSettings;
 import org.springframework.stereotype.Component;
 
@@ -18,18 +15,12 @@ import java.time.Duration;
 import java.util.UUID;
 
 @Component
-public class DataInitializer implements CommandLineRunner {
+public class ClientInitializer implements CommandLineRunner {
 
     private final RegisteredClientRepository clients;
-    private final org.springframework.security.provisioning.UserDetailsManager users;
-    private final PasswordEncoder passwordEncoder;
 
-    public DataInitializer(RegisteredClientRepository clients,
-                           org.springframework.security.provisioning.UserDetailsManager users,
-                           PasswordEncoder passwordEncoder) {
+    public ClientInitializer(RegisteredClientRepository clients) {
         this.clients = clients;
-        this.users = users;
-        this.passwordEncoder = passwordEncoder;
     }
 
     @Value("${app.spa.client-id:spa}") String spaClientId;
@@ -37,15 +28,6 @@ public class DataInitializer implements CommandLineRunner {
     @Value("${app.spa.post-logout-uri:http://localhost:5173/}") String spaPostLogout;
 
     @Override public void run(String... args) {
-        // Ensure admin user exists (after schema initialization)
-        if (!users.userExists("admin")) {
-            UserDetails admin = User.withUsername("admin")
-                    .password(passwordEncoder.encode("admin"))
-                    .roles("ADMIN")
-                    .build();
-            users.createUser(admin);
-        }
-
         if (clients.findByClientId(spaClientId) == null) {
             var rc = RegisteredClient.withId(UUID.randomUUID().toString())
                     .clientId(spaClientId)
@@ -68,3 +50,4 @@ public class DataInitializer implements CommandLineRunner {
         }
     }
 }
+

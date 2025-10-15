@@ -9,6 +9,7 @@ public class UserEntity {
     private String username;
     private String password;
     private boolean enabled;
+    private String email; // optional, unique
 
     public UserEntity() {}
 
@@ -26,5 +27,7 @@ public class UserEntity {
 
     public boolean isEnabled() { return enabled; }
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
-}
 
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
+}
