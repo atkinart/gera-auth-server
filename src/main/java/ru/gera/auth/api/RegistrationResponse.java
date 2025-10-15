@@ -1,4 +1,4 @@
-package com.example.auth.api;
+package ru.gera.auth.api;
 
 public class RegistrationResponse {
     private String username;
@@ -15,4 +15,3 @@ public class RegistrationResponse {
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
 }
-

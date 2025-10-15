@@ -1,4 +1,4 @@
-package com.example.auth.user;
+package ru.gera.auth.user;
 
 import org.springframework.data.repository.CrudRepository;
 

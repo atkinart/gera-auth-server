@@ -1,6 +1,6 @@
-package com.example.auth;
+package ru.gera.auth;
 
-import com.example.auth.user.UserRepository;
+import ru.gera.auth.user.UserRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
@@ -110,4 +110,3 @@ class RegistrationApiTests {
                 .andExpect(status().isConflict());
     }
 }
-

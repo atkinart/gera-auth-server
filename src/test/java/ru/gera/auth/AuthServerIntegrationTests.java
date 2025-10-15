@@ -1,6 +1,6 @@
-package com.example.auth;
+package ru.gera.auth;
 
-import com.example.auth.user.UserRepository;
+import ru.gera.auth.user.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
 import org.springframework.beans.factory.annotation.Autowired;

@@ -27,3 +27,10 @@ databaseChangeLog:
         - sqlFile:
             path: sql/004-seed-admin.sql
             relativeToChangelogFile: true
+  - changeSet:
+      id: 006-fix-oauth2-authorization-types
+      author: codex
+      changes:
+        - sqlFile:
+            path: sql/006-fix-oauth2-authorization-types.sql
+            relativeToChangelogFile: true

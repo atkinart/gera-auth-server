@@ -1,4 +1,4 @@
-package com.example.auth;
+package ru.gera.auth;
 
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;

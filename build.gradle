@@ -4,7 +4,7 @@ plugins {
     id 'java'
 }
 
-group = 'com.example'
+group = 'ru.gera'
 version = '0.0.1-SNAPSHOT'
 
 java {
@@ -52,5 +52,5 @@ test {
 }
 
 springBoot {
-    mainClass = 'com.example.auth.AuthServerApplication'
+    mainClass = 'ru.gera.auth.AuthServerApplication'
 }

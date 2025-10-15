@@ -1,6 +1,6 @@
-package com.example.auth.api;
+package ru.gera.auth.api;
 
-import com.example.auth.service.RegistrationService;
+import ru.gera.auth.service.RegistrationService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;

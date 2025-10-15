@@ -1,4 +1,4 @@
-package com.example.auth;
+package ru.gera.auth;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
@@ -50,4 +50,3 @@ public class ClientInitializer implements CommandLineRunner {
         }
     }
 }
-

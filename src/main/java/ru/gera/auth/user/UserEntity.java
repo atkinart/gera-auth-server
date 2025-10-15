@@ -1,4 +1,4 @@
-package com.example.auth.user;
+package ru.gera.auth.user;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Table;

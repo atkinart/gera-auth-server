@@ -1,8 +1,8 @@
-package com.example.auth.service;
+package ru.gera.auth.service;
 
-import com.example.auth.api.RegistrationRequest;
-import com.example.auth.api.RegistrationResponse;
-import com.example.auth.user.UserRepository;
+import ru.gera.auth.api.RegistrationRequest;
+import ru.gera.auth.api.RegistrationResponse;
+import ru.gera.auth.user.UserRepository;
 import jakarta.validation.Valid;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
@@ -56,4 +56,3 @@ public class RegistrationService {
         return new RegistrationResponse(req.getUsername(), req.getEmail());
     }
 }
-
