@@ -1,4 +1,4 @@
-# Spring Authorization Server (Gradle 9 + Java 25)
+# Gera Auth Server (Gradle 9 + Java 25)
 
 Готовый **Spring Authorization Server** (SAS) проект на **Gradle 9.1.0** и **Java 25**.
 - Хранит пользователей (`JdbcUserDetailsManager`) и OAuth2‑сущности в **PostgreSQL**.
@@ -56,15 +56,101 @@ docker run --rm -p 9000:9000 --name auth_server \
 
 ## Что внутри
 
-- `build.gradle` — Gradle 9, Java toolchain 25, зависимости Spring Boot 3.5.6 и SAS 1.5.2.
-- `SecurityConfig` — настройка SAS, OIDC, CORS, JDBC‑хранилищ.
-- `DataInitializer` — публичный клиент для SPA (PKCE), scopes `openid profile api.read`.
-- `application.yml` — SQL init с схемами SAS + таблицы пользователей.
+- `groupId`: `ru.gera`, базовый пакет: `ru.gera.auth`.
+- `build.gradle` — Gradle 9, Java toolchain 25, Spring Boot 3.5.6, SAS 1.5.x, springdoc-openapi.
+- `SecurityConfig` — настройка SAS, OIDC, CORS, JDBC‑хранилищ; доступ открыт к `/api/auth/register`, Swagger UI.
+- `ClientInitializer` — регистрирует SPA‑клиент (PKCE) и служебных клиентов для тестов.
+- `Liquibase` — миграции схем SAS и `users/authorities` (см. `db/changelog`).
+- `RegistrationController`/`RegistrationService` — REST‑регистрация пользователей `POST /api/auth/register`.
+- `banner.txt` — баннер в логах, берёт имя приложения и issuer из конфигурации.
 
 ## Примечания продакшена
 - Замените генерацию RSA‑ключа на keystore/Vault + ротация.
 - Включите HTTPS и укажите `APP_ISSUER` на prod‑домен.
-- Используйте Flyway/Liquibase вместо `spring.sql.init`.
+- Управляйте схемой через Liquibase (см. changelog). 
+  В changelog добавлено согласование типов под SAS 1.5.x (token/metadata/attributes как `text`).
+
+## OpenAPI / Swagger UI
+
+- UI: `http://localhost:9000/swagger-ui.html`
+- JSON: `http://localhost:9000/v3/api-docs`
+
+Описание включает ключевые точки интеграции для SPA и backend‑сервисов:
+- `/oauth2/authorize` — Authorization Code (+PKCE) с редиректом на `redirect_uri`.
+- `/oauth2/token` — обмен кода/refresh на токены.
+- `/userinfo` — OIDC профиль по `Bearer` токену.
+- `/oauth2/introspect` — интроспекция (Basic auth: confidential‑клиент).
+- `/oauth2/revoke` — отзыв токена (Basic/confidential или `client_id` для public, если разрешено).
+
+## Интеграция React (PKCE)
+
+1) Создайте публичный клиент в AS (ClientInitializer уже добавляет `spa` по умолчанию).
+2) На фронте выполните PKCE‑флоу:
+
+```ts
+// Пример: старт авторизации
+const authz = new URL('http://localhost:9000/oauth2/authorize');
+authz.searchParams.set('response_type', 'code');
+authz.searchParams.set('client_id', 'spa');
+authz.searchParams.set('redirect_uri', 'http://localhost:5173/callback');
+authz.searchParams.set('scope', 'openid profile');
+authz.searchParams.set('code_challenge', pkceChallenge);
+authz.searchParams.set('code_challenge_method', 'S256');
+window.location.assign(authz.toString());
+```
+
+`/callback` в приложении принимает `code`, обменивает на токены:
+
+```ts
+// POST x-www-form-urlencoded на /oauth2/token
+grant_type=authorization_code&code=...&redirect_uri=...&client_id=spa&code_verifier=...
+```
+
+Для профиля: `GET /userinfo` с заголовком `Authorization: Bearer <access_token>`.
+
+## Backend на Spring: проверка токенов
+
+Вариант 1 — Resource Server (рекомендуется, JWT):
+
+```groovy
+dependencies {
+  implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
+}
+```
+
+```yaml
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${APP_ISSUER:http://localhost:9000}
+```
+
+Вариант 2 — Интроспекция (opaque/централизованная проверка):
+
+```groovy
+dependencies {
+  implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
+}
+```
+
+```yaml
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        opaquetoken:
+          introspection-uri: http://localhost:9000/oauth2/introspect
+          client-id: conf-client
+          client-secret: secret
+```
+
+## Метаданные и баннер
+
+- Имя приложения: `spring.application.name=gera-auth-server` (banнер и логи).
+- `/actuator/info` содержит build‑информацию (версия, имя, группа) — включено через Gradle `springBoot { buildInfo() }`.
+- Баннер (`src/main/resources/banner.txt`) выводит имя и issuer.
 
 ## Лицензия
 MIT (или на ваше усмотрение)

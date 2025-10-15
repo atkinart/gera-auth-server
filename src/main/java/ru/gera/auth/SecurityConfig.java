@@ -66,8 +66,11 @@ public class SecurityConfig {
         http
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/api/auth/register").permitAll()
+                        .requestMatchers(
+                                "/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**"
+                        ).permitAll()
                         .anyRequest().authenticated())
-                .csrf(csrf -> csrf.ignoringRequestMatchers("/api/auth/register"))
+                .csrf(csrf -> csrf.ignoringRequestMatchers("/api/auth/register", "/v3/api-docs/**"))
                 .formLogin(Customizer.withDefaults());
         return http.cors(Customizer.withDefaults()).build();
     }

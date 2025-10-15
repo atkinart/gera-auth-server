@@ -22,6 +22,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-data-jdbc'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0'
     implementation 'org.liquibase:liquibase-core'
 
     // Spring Authorization Server
@@ -53,4 +54,5 @@ test {
 
 springBoot {
     mainClass = 'ru.gera.auth.AuthServerApplication'
+    buildInfo()
 }

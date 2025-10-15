@@ -7,6 +7,8 @@ app:
     origins: ${APP_CORS_ORIGINS:http://localhost:5173}
 
 spring:
+  application:
+    name: gera-auth-server
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/sas}
     username: ${SPRING_DATASOURCE_USERNAME:sas}
