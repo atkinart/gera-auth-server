@@ -1,5 +1,9 @@
 # CLAUDE.md - AI Assistant Context
 
+## Language Preference
+
+**ВАЖНО**: Отвечай на русском языке при работе с этим проектом, если пользователь пишет на русском.
+
 ## Project Overview
 
 **Gera Auth Server** is a Spring Authorization Server (SAS) project built with Gradle 9.1.0 and Java 25. It provides OAuth2/OIDC authentication services with PostgreSQL backend storage.
