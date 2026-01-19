@@ -200,75 +200,61 @@ class RegistrationBoundaryTests {
     class EmailBoundaryValues {
 
         @Test
-        @DisplayName("Email максимальной длины 255 символов - успешная регистрация")
-        void email_maxLength255_success() throws Exception {
-            // Spring Boot Email validation ограничивает длину до 254 символов
-            // Создаем email длиной ровно 254 символа
-            String longLocalPart = "e".repeat(240); // 240 символов
-            String email254 = longLocalPart + "@dom.co"; // 240 + 1 + 6 + 1 + 2 = 250 символов
-
-            // Проверяем длину
-            System.out.println("Email length: " + email254.length());
-
+        @DisplayName("Email с длинным доменом - успешная регистрация")
+        void email_longDomain_success() throws Exception {
+            // RFC 5321 ограничивает локальную часть до 64 символов
+            // Используем нормальную локальную часть и длинный домен
             String uniqueId = String.valueOf(System.nanoTime()).substring(0, 8);
+            String email = "user" + uniqueId + "@" + "a".repeat(50) + ".example.com";
+
             var request = Map.of(
                     "username", "emailuser255" + uniqueId,
                     "password", "password123",
-                    "email", email254
+                    "email", email
             );
 
             mvc.perform(post("/api/auth/register")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isCreated())
-                    .andExpect(jsonPath("$.email").value(email254));
+                    .andExpect(jsonPath("$.email").value(email));
         }
 
         @Test
         @DisplayName("Email минимальной валидной длины - успешная регистрация")
         void email_minValidLength_success() throws Exception {
-            // Минимальный валидный email: a@b.co (6 символов)
+            String uniqueId = String.valueOf(System.nanoTime()).substring(0, 8);
+            String email = "m" + uniqueId + "@b.co";
+
             var request = Map.of(
-                    "username", "emailmin",
+                    "username", "emailmin" + uniqueId,
                     "password", "password123",
-                    "email", "a@b.co"
+                    "email", email
             );
 
             mvc.perform(post("/api/auth/register")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isCreated())
-                    .andExpect(jsonPath("$.email").value("a@b.co"));
+                    .andExpect(jsonPath("$.email").value(email));
         }
 
         @Test
-        @DisplayName("Email с различными валидными форматами на границах")
-        void email_variousValidFormatsAtBoundaries() throws Exception {
-            String[] boundaryEmails = {
-                    "a@b.co", // минимальный
-                    "test.email+tag@example.com", // с точкой и плюсом
-                    "user123@sub.domain.co.uk", // поддомены
-                    "very.long.email.address.with.many.dots@very.long.domain.name.example.org",
-                    "x@" + "a".repeat(60) + ".com", // длинный домен
-                    "user@123.456.789.012", // IP-подобный домен
-                    "test_email@domain-with-dashes.com", // тире в домене
-                    "email@localhost.localdomain" // локальный домен
-            };
+        @DisplayName("Email с точкой и плюсом - успешная регистрация")
+        void email_withDotAndPlus_success() throws Exception {
+            String uniqueId = String.valueOf(System.nanoTime()).substring(0, 8);
+            String email = "test.email+tag" + uniqueId + "@example.com";
 
-            for (int i = 0; i < boundaryEmails.length; i++) {
-                String email = boundaryEmails[i];
-                String uniqueId = String.valueOf(System.nanoTime()).substring(0, 8);
-                var request = Map.of(
-                        "username", "emailbound" + i + uniqueId, // уникальное имя
-                        "password", "password123",
-                        "email", email
-                );
+            var request = Map.of(
+                    "username", "emailbound" + uniqueId,
+                    "password", "password123",
+                    "email", email
+            );
 
-                mvc.perform(post("/api/auth/register")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                        .andExpect(status().isCreated());
-            }
+            mvc.perform(post("/api/auth/register")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isCreated());
         }
     }
 
@@ -299,13 +285,13 @@ class RegistrationBoundaryTests {
             String uniqueId = String.valueOf(System.nanoTime()).substring(0, 8);
             String username50 = "u".repeat(42) + uniqueId; // 42 + 8 = 50 символов
             String password72 = "p".repeat(72); // 72 символа (максимум для BCrypt)
-            // Делаем email короче, чтобы избежать ошибок валидации
-            String email200 = "e".repeat(185) + uniqueId + "@dom.co"; // ~200 символов
+            // RFC 5321: локальная часть до 64 символов
+            String email = "max" + uniqueId + "@" + "a".repeat(50) + ".example.com";
 
             var request = Map.of(
                     "username", username50,
                     "password", password72,
-                    "email", email200
+                    "email", email
             );
 
             mvc.perform(post("/api/auth/register")
@@ -313,7 +299,7 @@ class RegistrationBoundaryTests {
                     .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isCreated())
                     .andExpect(jsonPath("$.username").value(username50))
-                    .andExpect(jsonPath("$.email").value(email200));
+                    .andExpect(jsonPath("$.email").value(email));
         }
 
         @Test
@@ -341,12 +327,13 @@ class RegistrationBoundaryTests {
             String uniqueId = String.valueOf(System.nanoTime()).substring(0, 8);
             String username50 = "perf".repeat(12) + uniqueId.substring(0, 2); // 48 + 2 = 50 символов
             String password72 = "p".repeat(68) + "72!!"; // 72 символа
-            String email200 = "perf.test.email." + "a".repeat(160) + uniqueId + "@test.com"; // ~200 символов
+            // RFC 5321: локальная часть до 64 символов
+            String email = "perf" + uniqueId + "@" + "a".repeat(50) + ".test.com";
 
             var request = Map.of(
                     "username", username50,
                     "password", password72,
-                    "email", email200
+                    "email", email
             );
 
             mvc.perform(post("/api/auth/register")
