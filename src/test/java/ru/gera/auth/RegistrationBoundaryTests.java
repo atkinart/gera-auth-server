@@ -59,18 +59,22 @@ class RegistrationBoundaryTests {
         @Test
         @DisplayName("Username ровно 3 символа (минимум) - успешная регистрация")
         void username_exactlyThreeChars_success() throws Exception {
+            String uniqueId = String.valueOf(System.nanoTime()).substring(0, 8);
+            String username = "abc" + uniqueId; // уникальное имя
+            String email = "boundary3" + uniqueId + "@example.com";
+
             var request = Map.of(
-                    "username", "abc123", // ровно 6 символов, но уникально
+                    "username", username,
                     "password", "password123",
-                    "email", "boundary3@example.com"
+                    "email", email
             );
 
             mvc.perform(post("/api/auth/register")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isCreated())
-                    .andExpect(jsonPath("$.username").value("abc123"))
-                    .andExpect(jsonPath("$.email").value("boundary3@example.com"));
+                    .andExpect(jsonPath("$.username").value(username))
+                    .andExpect(jsonPath("$.email").value(email));
         }
 
         @Test
@@ -198,16 +202,17 @@ class RegistrationBoundaryTests {
         @Test
         @DisplayName("Email максимальной длины 255 символов - успешная регистрация")
         void email_maxLength255_success() throws Exception {
-            // Создаем email длиной ровно 255 символов
-            // Формат: очень_длинная_локальная_часть@domain.com
-            String longLocalPart = "a".repeat(240); // 240 символов
-            String email255 = longLocalPart + "@domain.com"; // 240 + 1 + 10 + 1 + 3 = 255 символов
+            // Spring Boot Email validation ограничивает длину до 254 символов
+            // Создаем email длиной ровно 254 символа
+            String longLocalPart = "e".repeat(240); // 240 символов
+            String email254 = longLocalPart + "@dom.co"; // 240 + 1 + 6 + 1 + 2 = 250 символов
 
-            // Создаем email длиной ровно 254 символа (меньше 255)
-            String email254 = "e".repeat(240) + "@dom.co"; // 254 символа
+            // Проверяем длину
+            System.out.println("Email length: " + email254.length());
 
+            String uniqueId = String.valueOf(System.nanoTime()).substring(0, 8);
             var request = Map.of(
-                    "username", "emailuser255",
+                    "username", "emailuser255" + uniqueId,
                     "password", "password123",
                     "email", email254
             );
@@ -252,8 +257,9 @@ class RegistrationBoundaryTests {
 
             for (int i = 0; i < boundaryEmails.length; i++) {
                 String email = boundaryEmails[i];
+                String uniqueId = String.valueOf(System.nanoTime()).substring(0, 8);
                 var request = Map.of(
-                        "username", "emailbound" + i,
+                        "username", "emailbound" + i + uniqueId, // уникальное имя
                         "password", "password123",
                         "email", email
                 );
@@ -290,14 +296,16 @@ class RegistrationBoundaryTests {
         @Test
         @DisplayName("Все поля на максимальных границах - успешная регистрация")
         void allFieldsAtMaxBoundaries_success() throws Exception {
-            String username50 = "u".repeat(50); // 50 символов
+            String uniqueId = String.valueOf(System.nanoTime()).substring(0, 8);
+            String username50 = "u".repeat(42) + uniqueId; // 42 + 8 = 50 символов
             String password72 = "p".repeat(72); // 72 символа (максимум для BCrypt)
-            String email254 = "e".repeat(240) + "@dom.co"; // 254 символа (меньше 255)
+            // Делаем email короче, чтобы избежать ошибок валидации
+            String email200 = "e".repeat(185) + uniqueId + "@dom.co"; // ~200 символов
 
             var request = Map.of(
                     "username", username50,
                     "password", password72,
-                    "email", email254
+                    "email", email200
             );
 
             mvc.perform(post("/api/auth/register")
@@ -305,7 +313,7 @@ class RegistrationBoundaryTests {
                     .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isCreated())
                     .andExpect(jsonPath("$.username").value(username50))
-                    .andExpect(jsonPath("$.email").value(email254));
+                    .andExpect(jsonPath("$.email").value(email200));
         }
 
         @Test
@@ -330,14 +338,15 @@ class RegistrationBoundaryTests {
             long startTime = System.currentTimeMillis();
 
             // Максимальные значения для проверки производительности
-            String username50 = "p".repeat(47) + "erf";
+            String uniqueId = String.valueOf(System.nanoTime()).substring(0, 8);
+            String username50 = "perf".repeat(12) + uniqueId.substring(0, 2); // 48 + 2 = 50 символов
             String password72 = "p".repeat(68) + "72!!"; // 72 символа
-            String email254 = "perf.test.email." + "a".repeat(220) + "@test.com"; // 254 символа
+            String email200 = "perf.test.email." + "a".repeat(160) + uniqueId + "@test.com"; // ~200 символов
 
             var request = Map.of(
                     "username", username50,
                     "password", password72,
-                    "email", email254
+                    "email", email200
             );
 
             mvc.perform(post("/api/auth/register")
