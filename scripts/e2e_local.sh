@@ -8,7 +8,8 @@ set -euo pipefail
 #   - run app in Docker
 #   - call /actuator/health and print status + body
 #   - (optional) POST /api/auth/register
-#   - (optional) OAuth2 client_credentials token + introspection + revocation
+#   - (optional) OAuth2 Authorization Code + PKCE (as SPA client)
+#   - (optional) call /userinfo with the issued access_token
 #
 # Usage:
 #   ./scripts/e2e_local.sh
@@ -46,25 +47,25 @@ WAIT_SECONDS="${WAIT_SECONDS:-60}"
 
 # E2E HTTP checks (override via env)
 RUN_REGISTRATION="${RUN_REGISTRATION:-1}"
-RUN_OAUTH_CLIENT_CREDENTIALS="${RUN_OAUTH_CLIENT_CREDENTIALS:-1}"
-RUN_OAUTH_INTROSPECT="${RUN_OAUTH_INTROSPECT:-1}"
-RUN_OAUTH_REVOKE="${RUN_OAUTH_REVOKE:-1}"
+RUN_OAUTH_PKCE="${RUN_OAUTH_PKCE:-1}"
+RUN_USERINFO="${RUN_USERINFO:-1}"
 
 # Registration payload (auto-generated when empty)
 REG_USERNAME="${REG_USERNAME:-}"
 REG_PASSWORD="${REG_PASSWORD:-Password1!}"
 REG_EMAIL="${REG_EMAIL:-}"
 
-# E2E client (created by the app only when APP_E2E_ENABLED=true)
-E2E_CLIENT_ID="${E2E_CLIENT_ID:-e2e-client}"
-E2E_CLIENT_SECRET="${E2E_CLIENT_SECRET:-e2e-secret}"
-E2E_SCOPE="${E2E_SCOPE:-api.read}"
+# SPA client (exists in production via ClientInitializer)
+SPA_CLIENT_ID="${SPA_CLIENT_ID:-spa}"
+SPA_REDIRECT_URI="${SPA_REDIRECT_URI:-http://localhost:5173/callback}"
+SPA_SCOPE="${SPA_SCOPE:-openid profile api.read}"
 
 BASE_URL="${BASE_URL:-http://localhost:${APP_PORT}}"
 REGISTER_URL="${REGISTER_URL:-${BASE_URL}/api/auth/register}"
 TOKEN_URL="${TOKEN_URL:-${BASE_URL}/oauth2/token}"
-INTROSPECT_URL="${INTROSPECT_URL:-${BASE_URL}/oauth2/introspect}"
-REVOKE_URL="${REVOKE_URL:-${BASE_URL}/oauth2/revoke}"
+AUTHORIZE_URL="${AUTHORIZE_URL:-${BASE_URL}/oauth2/authorize}"
+LOGIN_URL="${LOGIN_URL:-${BASE_URL}/login}"
+USERINFO_URL="${USERINFO_URL:-${BASE_URL}/userinfo}"
 
 log() { printf "\n[%s] %s\n" "$(date +'%H:%M:%S')" "$*"; }
 
@@ -94,6 +95,51 @@ elif val is None:
     print("")
 else:
     print(str(val))
+PY
+}
+
+urlencode() {
+  python3 - "$1" <<'PY'
+import sys, urllib.parse
+print(urllib.parse.quote(sys.argv[1], safe=""))
+PY
+}
+
+pkce_verifier() {
+  python3 - <<'PY'
+import os, base64
+print(base64.urlsafe_b64encode(os.urandom(32)).decode("ascii").rstrip("="))
+PY
+}
+
+pkce_challenge_s256() {
+  python3 - "$1" <<'PY'
+import sys, hashlib, base64
+v = sys.argv[1].encode("ascii")
+d = hashlib.sha256(v).digest()
+print(base64.urlsafe_b64encode(d).decode("ascii").rstrip("="))
+PY
+}
+
+extract_csrf() {
+  local html_file="$1"
+  # Spring Security default login/consent pages include: name="_csrf" value="..."
+  grep -Eo 'name="_csrf" value="[^"]+"' "$html_file" | head -n1 | sed -E 's/.*value="([^"]+)".*/\1/'
+}
+
+extract_location_header() {
+  local headers_file="$1"
+  awk 'BEGIN{IGNORECASE=1} /^Location:/ {sub(/\r$/,""); print substr($0, 10)}' "$headers_file" | tail -n1
+}
+
+extract_query_param() {
+  python3 - "$1" "$2" <<'PY'
+import sys, urllib.parse
+url = sys.argv[1]
+key = sys.argv[2]
+q = urllib.parse.urlparse(url).query
+params = urllib.parse.parse_qs(q)
+print((params.get(key) or [""])[0])
 PY
 }
 
@@ -205,10 +251,6 @@ docker run -d \
   -e "SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME}" \
   -e "SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD}" \
   -e "APP_ISSUER=${APP_ISSUER}" \
-  -e "APP_E2E_ENABLED=true" \
-  -e "APP_E2E_CLIENT_ID=${E2E_CLIENT_ID}" \
-  -e "APP_E2E_CLIENT_SECRET=${E2E_CLIENT_SECRET}" \
-  -e "APP_E2E_SCOPE=${E2E_SCOPE}" \
   "${APP_IMAGE}" >/dev/null
 
 log "Waiting for app health endpoint: ${HEALTH_URL}"
@@ -271,14 +313,145 @@ JSON
 fi
 
 ACCESS_TOKEN=""
-if [[ "$RUN_OAUTH_CLIENT_CREDENTIALS" == "1" ]]; then
-  log "Request: OAuth2 client_credentials token"
+if [[ "$RUN_OAUTH_PKCE" == "1" ]]; then
+  if [[ -z "${REG_USERNAME}" ]]; then
+    echo "RUN_OAUTH_PKCE=1 requires a user. Either RUN_REGISTRATION=1 or set REG_USERNAME/REG_PASSWORD."
+    exit 1
+  fi
+
+  log "OAuth2 PKCE: login as user (${REG_USERNAME})"
+  cookies="$(mktemp)"
+  login_html="$(mktemp)"
+
+  curl -sS -c "$cookies" -b "$cookies" -o "$login_html" "$LOGIN_URL"
+  login_csrf="$(extract_csrf "$login_html")"
+  if [[ -z "$login_csrf" ]]; then
+    echo "Could not extract CSRF token from login page."
+    sed -n '1,120p' "$login_html" || true
+    rm -f "$login_html" "$cookies"
+    exit 1
+  fi
+  rm -f "$login_html"
+
+  login_code="$(curl -sS -o /dev/null -w '%{http_code}' \
+    -c "$cookies" -b "$cookies" \
+    -H 'Content-Type: application/x-www-form-urlencoded' \
+    --data-urlencode "username=${REG_USERNAME}" \
+    --data-urlencode "password=${REG_PASSWORD}" \
+    --data-urlencode "_csrf=${login_csrf}" \
+    "$LOGIN_URL" || true)"
+
+  if [[ "$login_code" != "302" ]]; then
+    echo "Login failed (HTTP ${login_code})."
+    rm -f "$cookies"
+    exit 1
+  fi
+
+  log "OAuth2 PKCE: authorize (client_id=${SPA_CLIENT_ID})"
+  verifier="$(pkce_verifier)"
+  challenge="$(pkce_challenge_s256 "$verifier")"
+  state="$(python3 -c 'import uuid; print(uuid.uuid4())')"
+  nonce="$(python3 -c 'import uuid; print(uuid.uuid4())')"
+
+  auth_headers="$(mktemp)"
+  auth_body="$(mktemp)"
+  auth_query="response_type=code"
+  auth_query="${auth_query}&client_id=$(urlencode "$SPA_CLIENT_ID")"
+  auth_query="${auth_query}&redirect_uri=$(urlencode "$SPA_REDIRECT_URI")"
+  auth_query="${auth_query}&scope=$(urlencode "$SPA_SCOPE")"
+  auth_query="${auth_query}&code_challenge=$(urlencode "$challenge")"
+  auth_query="${auth_query}&code_challenge_method=S256"
+  auth_query="${auth_query}&state=$(urlencode "$state")"
+  auth_query="${auth_query}&nonce=$(urlencode "$nonce")"
+
+  auth_code="$(curl -sS -D "$auth_headers" -o "$auth_body" -w '%{http_code}' \
+    -c "$cookies" -b "$cookies" \
+    "${AUTHORIZE_URL}?${auth_query}" || true)"
+
+  if [[ "$auth_code" == "200" ]]; then
+    # Consent page expected when spa requires consent
+    consent_csrf="$(extract_csrf "$auth_body")"
+    consent_action_url="$(grep -Eo '<form[^>]+action="[^"]+"' "$auth_body" | head -n1 | sed -E 's/.*action="([^"]+)".*/\1/')"
+    consent_action_url="${consent_action_url:-/oauth2/authorize}"
+    if [[ "$consent_action_url" != http* ]]; then
+      consent_action_url="${BASE_URL}${consent_action_url}"
+    fi
+
+    state_in_form="$(grep -Eo 'name="state" value="[^"]+"' "$auth_body" | head -n1 | sed -E 's/.*value="([^"]+)".*/\1/')"
+    client_in_form="$(grep -Eo 'name="client_id" value="[^"]+"' "$auth_body" | head -n1 | sed -E 's/.*value="([^"]+)".*/\1/')"
+    state_in_form="${state_in_form:-$state}"
+    client_in_form="${client_in_form:-$SPA_CLIENT_ID}"
+
+    mapfile -t scopes < <(grep -Eo 'name="scope" value="[^"]+"' "$auth_body" | sed -E 's/.*value="([^"]+)".*/\1/' | sort -u)
+    if [[ "${#scopes[@]}" -eq 0 ]]; then
+      IFS=' ' read -r -a scopes <<<"$SPA_SCOPE"
+    fi
+
+    if [[ -z "$consent_csrf" ]]; then
+      echo "Could not extract CSRF token from consent page."
+      sed -n '1,200p' "$auth_body" || true
+      rm -f "$auth_headers" "$auth_body" "$cookies"
+      exit 1
+    fi
+
+    rm -f "$auth_headers" "$auth_body"
+
+    consent_headers="$(mktemp)"
+    consent_body="$(mktemp)"
+    curl_args=( -sS -D "$consent_headers" -o "$consent_body" -w '%{http_code}' )
+    curl_args+=( -c "$cookies" -b "$cookies" )
+    curl_args+=( -H 'Content-Type: application/x-www-form-urlencoded' )
+    curl_args+=( --data-urlencode "_csrf=${consent_csrf}" )
+    curl_args+=( --data-urlencode "client_id=${client_in_form}" )
+    curl_args+=( --data-urlencode "state=${state_in_form}" )
+    curl_args+=( --data-urlencode "consent_action=approve" )
+    for s in "${scopes[@]}"; do
+      curl_args+=( --data-urlencode "scope=${s}" )
+    done
+
+    consent_code="$(curl "${curl_args[@]}" "$consent_action_url" || true)"
+    auth_location="$(extract_location_header "$consent_headers")"
+    rm -f "$consent_headers" "$consent_body"
+    if [[ "$consent_code" != "302" || -z "$auth_location" ]]; then
+      echo "Consent submit did not redirect to client (HTTP ${consent_code})."
+      rm -f "$cookies"
+      exit 1
+    fi
+  elif [[ "$auth_code" == "302" ]]; then
+    auth_location="$(extract_location_header "$auth_headers")"
+    rm -f "$auth_headers" "$auth_body"
+    if [[ -z "$auth_location" ]]; then
+      echo "Authorize did not include Location header."
+      rm -f "$cookies"
+      exit 1
+    fi
+  else
+    echo "Authorize request failed (HTTP ${auth_code})."
+    echo "----- headers -----"
+    cat "$auth_headers" || true
+    echo "----- body (first 200 lines) -----"
+    sed -n '1,200p' "$auth_body" || true
+    rm -f "$auth_headers" "$auth_body" "$cookies"
+    exit 1
+  fi
+
+  code="$(extract_query_param "$auth_location" code)"
+  if [[ -z "$code" ]]; then
+    echo "Authorize redirect did not include code."
+    echo "Location: ${auth_location}"
+    rm -f "$cookies"
+    exit 1
+  fi
+
+  log "OAuth2 PKCE: exchange code for token"
   token_tmp="$(mktemp)"
   token_code="$(curl -sS -o "$token_tmp" -w '%{http_code}' \
-    -u "${E2E_CLIENT_ID}:${E2E_CLIENT_SECRET}" \
     -H 'Content-Type: application/x-www-form-urlencoded' \
-    --data-urlencode "grant_type=client_credentials" \
-    --data-urlencode "scope=${E2E_SCOPE}" \
+    --data-urlencode "grant_type=authorization_code" \
+    --data-urlencode "client_id=${SPA_CLIENT_ID}" \
+    --data-urlencode "redirect_uri=${SPA_REDIRECT_URI}" \
+    --data-urlencode "code=${code}" \
+    --data-urlencode "code_verifier=${verifier}" \
     "$TOKEN_URL" || true)"
 
   echo "HTTP ${token_code}"
@@ -286,100 +459,45 @@ if [[ "$RUN_OAUTH_CLIENT_CREDENTIALS" == "1" ]]; then
   echo
 
   if [[ "$token_code" != "200" ]]; then
-    echo "Token request failed (HTTP ${token_code})."
-    rm -f "$token_tmp"
+    echo "Token exchange failed (HTTP ${token_code})."
+    rm -f "$token_tmp" "$cookies"
     exit 1
   fi
 
   ACCESS_TOKEN="$(json_get access_token "$token_tmp")"
+  rm -f "$token_tmp"
   if [[ -z "$ACCESS_TOKEN" ]]; then
     echo "Token response did not contain access_token."
-    rm -f "$token_tmp"
+    rm -f "$cookies"
     exit 1
   fi
-  rm -f "$token_tmp"
+
+  rm -f "$cookies"
 fi
 
-if [[ "$RUN_OAUTH_INTROSPECT" == "1" && -n "$ACCESS_TOKEN" ]]; then
-  log "Request: OAuth2 introspect access_token"
-  introspect_tmp="$(mktemp)"
-  introspect_code="$(curl -sS -o "$introspect_tmp" -w '%{http_code}' \
-    -u "${E2E_CLIENT_ID}:${E2E_CLIENT_SECRET}" \
-    -H 'Content-Type: application/x-www-form-urlencoded' \
-    --data-urlencode "token=${ACCESS_TOKEN}" \
-    "$INTROSPECT_URL" || true)"
+if [[ "$RUN_USERINFO" == "1" && -n "$ACCESS_TOKEN" ]]; then
+  log "Request: GET /userinfo (verify token is accepted)"
+  userinfo_tmp="$(mktemp)"
+  userinfo_code="$(curl -sS -o "$userinfo_tmp" -w '%{http_code}' \
+    -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+    -H 'Accept: application/json' \
+    "$USERINFO_URL" || true)"
 
-  echo "HTTP ${introspect_code}"
-  cat "$introspect_tmp"
+  echo "HTTP ${userinfo_code}"
+  cat "$userinfo_tmp"
   echo
 
-  if [[ "$introspect_code" != "200" ]]; then
-    echo "Introspection request failed (HTTP ${introspect_code})."
-    rm -f "$introspect_tmp"
+  if [[ "$userinfo_code" != "200" ]]; then
+    echo "Userinfo request failed (HTTP ${userinfo_code})."
+    rm -f "$userinfo_tmp"
     exit 1
   fi
 
-  active="$(json_get active "$introspect_tmp")"
-  client_id="$(json_get client_id "$introspect_tmp")"
-  if [[ "$active" != "True" && "$active" != "true" ]]; then
-    echo "Expected introspection active=true but got: ${active}"
-    rm -f "$introspect_tmp"
+  sub="$(json_get sub "$userinfo_tmp")"
+  rm -f "$userinfo_tmp"
+  if [[ -z "$sub" ]]; then
+    echo "Userinfo response did not contain sub."
     exit 1
-  fi
-  if [[ -n "$client_id" && "$client_id" != "$E2E_CLIENT_ID" ]]; then
-    echo "Expected introspection client_id=${E2E_CLIENT_ID} but got: ${client_id}"
-    rm -f "$introspect_tmp"
-    exit 1
-  fi
-
-  rm -f "$introspect_tmp"
-fi
-
-if [[ "$RUN_OAUTH_REVOKE" == "1" && -n "$ACCESS_TOKEN" ]]; then
-  log "Request: OAuth2 revoke access_token"
-  revoke_tmp="$(mktemp)"
-  revoke_code="$(curl -sS -o "$revoke_tmp" -w '%{http_code}' \
-    -u "${E2E_CLIENT_ID}:${E2E_CLIENT_SECRET}" \
-    -H 'Content-Type: application/x-www-form-urlencoded' \
-    --data-urlencode "token_type_hint=access_token" \
-    --data-urlencode "token=${ACCESS_TOKEN}" \
-    "$REVOKE_URL" || true)"
-
-  echo "HTTP ${revoke_code}"
-  cat "$revoke_tmp"
-  echo
-  rm -f "$revoke_tmp"
-
-  if [[ "$revoke_code" != "200" ]]; then
-    echo "Revocation request failed (HTTP ${revoke_code})."
-    exit 1
-  fi
-
-  if [[ "$RUN_OAUTH_INTROSPECT" == "1" ]]; then
-    log "Request: OAuth2 introspect access_token after revocation (expect inactive)"
-    post_tmp="$(mktemp)"
-    post_code="$(curl -sS -o "$post_tmp" -w '%{http_code}' \
-      -u "${E2E_CLIENT_ID}:${E2E_CLIENT_SECRET}" \
-      -H 'Content-Type: application/x-www-form-urlencoded' \
-      --data-urlencode "token=${ACCESS_TOKEN}" \
-      "$INTROSPECT_URL" || true)"
-
-    echo "HTTP ${post_code}"
-    cat "$post_tmp"
-    echo
-
-    if [[ "$post_code" != "200" ]]; then
-      echo "Post-revoke introspection failed (HTTP ${post_code})."
-      rm -f "$post_tmp"
-      exit 1
-    fi
-
-    post_active="$(json_get active "$post_tmp")"
-    rm -f "$post_tmp"
-    if [[ "$post_active" != "False" && "$post_active" != "false" ]]; then
-      echo "Expected introspection active=false after revoke but got: ${post_active}"
-      exit 1
-    fi
   fi
 fi
 

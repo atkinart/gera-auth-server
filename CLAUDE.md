@@ -111,6 +111,7 @@ Managed by Liquibase with changesets for:
 - Предпочитаемый шаблон: `@SpringBootTest` + `@Testcontainers` + `@ServiceConnection` со статическим `PostgreSQLContainer`.
 - Если добавляешь новые тесты, не делай “псевдотесты” без проверяемого контракта (например, перф/рейткеп-тесты без assert) — лучше меньше, но e2e по реальному флоу.
 - Для локальных окружений может понадобиться `src/test/resources/docker-java.properties` (настройка клиента Docker для Testcontainers).
+- В прод-коде не добавляем тестовые флаги/клиентов/эндпоинты “для e2e”: локальный e2e запускаем **как в проде**, меняя только env запуска контейнеров.
 
 ## Common AI Assistant Tasks
 
