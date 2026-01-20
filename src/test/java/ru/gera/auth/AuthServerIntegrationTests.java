@@ -23,7 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * - наличие пользователя admin, созданного миграциями Liquibase,
  * - наличие преднастроенного SPA-клиента, создаваемого при старте.
  */
-@Testcontainers
+@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(properties = {
         "app.issuer=http://test-issuer"
 })

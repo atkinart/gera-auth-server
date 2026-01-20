@@ -45,7 +45,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Покрывает: discovery/JWKS, Authorization Code + PKCE, обмен кода на токены,
  * OIDC userinfo, refresh_token (для confidential клиента), introspection и revoke.
  */
-@Testcontainers
+@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(properties = {
         "app.issuer=http://test-issuer"
 })
