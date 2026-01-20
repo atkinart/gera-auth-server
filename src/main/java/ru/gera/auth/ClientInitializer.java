@@ -27,6 +27,11 @@ public class ClientInitializer implements CommandLineRunner {
     @Value("${app.spa.redirect-uri:http://localhost:5173/callback}") String spaRedirect;
     @Value("${app.spa.post-logout-uri:http://localhost:5173/}") String spaPostLogout;
 
+    @Value("${app.e2e.enabled:false}") boolean e2eEnabled;
+    @Value("${app.e2e.client-id:e2e-client}") String e2eClientId;
+    @Value("${app.e2e.client-secret:e2e-secret}") String e2eClientSecret;
+    @Value("${app.e2e.scope:api.read}") String e2eScope;
+
     @Override public void run(String... args) {
         if (clients.findByClientId(spaClientId) == null) {
             var rc = RegisteredClient.withId(UUID.randomUUID().toString())
@@ -47,6 +52,23 @@ public class ClientInitializer implements CommandLineRunner {
                             .build())
                     .build();
             clients.save(rc);
+        }
+
+        if (e2eEnabled && clients.findByClientId(e2eClientId) == null) {
+            var e2e = RegisteredClient.withId(UUID.randomUUID().toString())
+                    .clientId(e2eClientId)
+                    .clientSecret("{noop}" + e2eClientSecret)
+                    .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
+                    .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
+                    .scope(e2eScope)
+                    .clientSettings(ClientSettings.builder()
+                            .requireAuthorizationConsent(false)
+                            .build())
+                    .tokenSettings(TokenSettings.builder()
+                            .accessTokenTimeToLive(Duration.ofMinutes(15))
+                            .build())
+                    .build();
+            clients.save(e2e);
         }
     }
 }
