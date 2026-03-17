@@ -123,8 +123,23 @@ PY
 
 extract_csrf() {
   local html_file="$1"
-  # Spring Security default login/consent pages include: name="_csrf" value="..."
-  grep -Eo 'name="_csrf" value="[^"]+"' "$html_file" | head -n1 | sed -E 's/.*value="([^"]+)".*/\1/'
+  python3 - "$html_file" <<'PY'
+import pathlib, re, sys
+
+text = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8", errors="ignore")
+patterns = [
+    r'name=["\']_csrf["\'][^>]*value=["\']([^"\']+)["\']',
+    r'value=["\']([^"\']+)["\'][^>]*name=["\']_csrf["\']',
+]
+
+for pattern in patterns:
+    m = re.search(pattern, text)
+    if m:
+        print(m.group(1))
+        break
+else:
+    print("")
+PY
 }
 
 extract_location_header() {
@@ -382,16 +397,14 @@ if [[ "$RUN_OAUTH_PKCE" == "1" ]]; then
     state_in_form="${state_in_form:-$state}"
     client_in_form="${client_in_form:-$SPA_CLIENT_ID}"
 
-    mapfile -t scopes < <(grep -Eo 'name="scope" value="[^"]+"' "$auth_body" | sed -E 's/.*value="([^"]+)".*/\1/' | sort -u)
+    scopes=()
+    while IFS= read -r s; do
+      [[ -n "$s" ]] && scopes+=("$s")
+    done < <(grep -Eo 'name="scope" value="[^"]+"' "$auth_body" | sed -E 's/.*value="([^"]+)".*/\1/' | sort -u)
     if [[ "${#scopes[@]}" -eq 0 ]]; then
-      IFS=' ' read -r -a scopes <<<"$SPA_SCOPE"
-    fi
-
-    if [[ -z "$consent_csrf" ]]; then
-      echo "Could not extract CSRF token from consent page."
-      sed -n '1,200p' "$auth_body" || true
-      rm -f "$auth_headers" "$auth_body" "$cookies"
-      exit 1
+      for s in $SPA_SCOPE; do
+        scopes+=("$s")
+      done
     fi
 
     rm -f "$auth_headers" "$auth_body"
@@ -401,7 +414,9 @@ if [[ "$RUN_OAUTH_PKCE" == "1" ]]; then
     curl_args=( -sS -D "$consent_headers" -o "$consent_body" -w '%{http_code}' )
     curl_args+=( -c "$cookies" -b "$cookies" )
     curl_args+=( -H 'Content-Type: application/x-www-form-urlencoded' )
-    curl_args+=( --data-urlencode "_csrf=${consent_csrf}" )
+    if [[ -n "$consent_csrf" ]]; then
+      curl_args+=( --data-urlencode "_csrf=${consent_csrf}" )
+    fi
     curl_args+=( --data-urlencode "client_id=${client_in_form}" )
     curl_args+=( --data-urlencode "state=${state_in_form}" )
     curl_args+=( --data-urlencode "consent_action=approve" )

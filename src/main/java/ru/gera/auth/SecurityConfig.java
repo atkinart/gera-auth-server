@@ -65,6 +65,7 @@ public class SecurityConfig {
     SecurityFilterChain appFilterChain(HttpSecurity http) throws Exception {
         http
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/register").permitAll()
                         .requestMatchers(
                                 "/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**"

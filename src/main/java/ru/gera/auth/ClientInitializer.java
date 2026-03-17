@@ -43,7 +43,7 @@ public class ClientInitializer implements CommandLineRunner {
                             .requireAuthorizationConsent(true)
                             .build())
                     .tokenSettings(TokenSettings.builder()
-                            .accessTokenTimeToLive(Duration.ofMinutes(15))
+                            .accessTokenTimeToLive(Duration.ofMinutes(60))
                             .build())
                     .build();
             clients.save(rc);
