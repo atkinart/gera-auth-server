@@ -11,7 +11,7 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.http.MediaType;
 import org.springframework.security.provisioning.UserDetailsManager;
 import org.springframework.test.web.servlet.MockMvc;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.containers.MongoDBContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
@@ -34,13 +34,8 @@ class RegistrationApiTests {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(
-            DockerImageName.parse("postgres:16"))
-            .withDatabaseName("test")
-            .withUsername("test")
-            .withPassword("test")
-            .withEnv("PGDATA", "/var/lib/postgresql/data")
-            .withTmpFs(Map.of("/var/lib/postgresql/data", "rw,size=256m"))
+    static MongoDBContainer mongo = new MongoDBContainer(
+            DockerImageName.parse("mongo:7"))
             .withStartupTimeout(java.time.Duration.ofMinutes(5))
             .waitingFor(org.testcontainers.containers.wait.strategy.Wait.forListeningPort());
 

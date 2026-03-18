@@ -4,12 +4,12 @@
 Если пользователь пишет по-русски — отвечай по-русски.
 
 ## Контекст проекта
-Это Spring Boot Authorization Server (Gradle/Java) с PostgreSQL и Liquibase.
+Это Spring Boot Authorization Server (Gradle/Java) с MongoDB.
 См. CLAUDE.md для деталей эндпоинтов и переменных окружения.
 
 ## Цель (основной кейс)
 Автоматизировать локальное тестирование:
-1) поднять PostgreSQL в Docker
+1) поднять MongoDB в Docker
 2) собрать и запустить приложение в Docker
 3) сделать HTTP-запрос к приложению (минимум: /actuator/health)
 4) вывести HTTP status + body ответа
@@ -37,16 +37,14 @@
 - включать внешние интеграции/доступы/секреты без явного запроса пользователя
 
 ## Канонический workflow (то, что нужно реализовать/поддерживать)
-### 1) PostgreSQL в Docker
-- Поднимать Postgres 16+ (как в CLAUDE.md) в контейнере.
+### 1) MongoDB в Docker
+- Поднимать MongoDB 7+ (как в CLAUDE.md) в контейнере.
 - Данные (volume) должны быть устойчивыми между запусками, но должна быть команда “clean”, которая всё удаляет.
 
 ### 2) Приложение в Docker
 - Собирать jar через `./gradlew clean bootJar`
 - Запускать контейнер приложения, прокидывая переменные окружения:
-  - `SPRING_DATASOURCE_URL`
-  - `SPRING_DATASOURCE_USERNAME`
-  - `SPRING_DATASOURCE_PASSWORD`
+  - `MONGO_URI` (или `SPRING_DATA_MONGODB_URI` для обратной совместимости)
   - `APP_ISSUER` (обычно http://localhost:<порт>)
   - (опционально) `APP_CORS_ORIGINS`
 - Дождаться готовности приложения (healthcheck/poll).
@@ -60,12 +58,12 @@
 
 ### 4) Логи/диагностика
 Если запрос не проходит:
-- показать `docker logs` приложения и Postgres (последние ~200 строк)
+- показать `docker logs` приложения и MongoDB (последние ~200 строк)
 - показать, какие порты слушаются и какие контейнеры подняты
 
 ## “Definition of Done” для задачи “протестируй локально”
 - Есть одна команда (make/скрипт), которая:
-  - поднимает postgres
+  - поднимает mongo
   - запускает app
   - делает HTTP запрос к `/actuator/health`
   - печатает HTTP status и body
@@ -75,7 +73,7 @@
 ## Рекомендуемая структура файлов, которые можно создать
 - `scripts/e2e_local.sh` — основной сценарий
 - `scripts/e2e_local_clean.sh` — clean
-- `docker-compose.local.yml` — postgres + app (если удобно)
+- `docker-compose.local.yml` — mongo + app (если удобно)
 - `Makefile` — цели:
   - `make test-local`
   - `make test-local-clean`
@@ -90,7 +88,7 @@
 
 ## Порядок действий для агента, если в репо ещё нет нужного
 1) Проверить наличие `Dockerfile`, `docker-compose*.yml`, `Makefile`, `scripts/`
-2) Если compose отсутствует — создать `docker-compose.local.yml` для postgres и (при желании) app
+2) Если compose отсутствует — создать `docker-compose.local.yml` для mongo и (при желании) app
 3) Добавить `scripts/e2e_local.sh` и `Makefile` цели
 4) Запустить `make test-local`
 5) Показать результат curl (status + body)

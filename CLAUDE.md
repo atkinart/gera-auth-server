@@ -6,7 +6,7 @@
 
 ## Project Overview
 
-**Gera Auth Server** is a Spring Authorization Server (SAS) project built with Gradle 9.1.0 and Java 25. It provides OAuth2/OIDC authentication services with PostgreSQL backend storage.
+**Gera Auth Server** is a Spring Authorization Server (SAS) project built with Gradle 9.1.0 and Java 25. It provides OAuth2/OIDC authentication services with MongoDB backend storage.
 
 ## Key Technologies
 
@@ -14,8 +14,7 @@
 - **Build Tool**: Gradle 9.1.0
 - **Framework**: Spring Boot 3.5.6
 - **Security**: Spring Security OAuth2 Authorization Server 1.5.2
-- **Database**: PostgreSQL 16+
-- **Migration**: Liquibase
+- **Database**: MongoDB 7+
 - **Documentation**: OpenAPI 3 (springdoc-openapi)
 - **Testing**: JUnit 5, Testcontainers
 
@@ -30,7 +29,6 @@ src/main/java/ru/gera/auth/
 └── GeraAuthServerApplication.java
 
 src/main/resources/
-├── db/changelog/    # Liquibase database migrations
 ├── application.yml  # Main configuration
 └── banner.txt       # Custom startup banner
 
@@ -43,17 +41,16 @@ src/test/java/
 1. **OAuth2/OIDC Support**: Full OAuth2 Authorization Server with OIDC 1.0
 2. **PKCE for SPAs**: Support for public clients (Single Page Applications)
 3. **User Registration**: REST API for user registration (`POST /api/auth/register`)
-4. **JDBC User Management**: Users stored in PostgreSQL via JdbcUserDetailsManager
+4. **Mongo User Management**: Users stored in MongoDB via Spring Data repositories
 5. **CORS Configuration**: Configurable CORS origins via environment variables
-6. **Database Migrations**: Liquibase-managed schema evolution
+6. **Schema-less Persistence**: Mongo collections for users and OAuth2 entities
 7. **OpenAPI Documentation**: Swagger UI available at `/swagger-ui.html`
 
 ## Environment Configuration
 
 Key environment variables:
-- `SPRING_DATASOURCE_URL`: PostgreSQL connection URL
-- `SPRING_DATASOURCE_USERNAME`: Database username
-- `SPRING_DATASOURCE_PASSWORD`: Database password
+- `MONGO_URI`: MongoDB connection URL (primary)
+- `SPRING_DATA_MONGODB_URI`: MongoDB connection URL (compatibility alias)
 - `APP_ISSUER`: OAuth2 issuer URL (e.g., http://localhost:9000)
 - `APP_CORS_ORIGINS`: Allowed CORS origins (e.g., http://localhost:5173)
 
@@ -78,7 +75,7 @@ Key environment variables:
 
 ## Development Workflow
 
-1. **Database**: Run PostgreSQL locally or via Docker
+1. **Database**: Run MongoDB locally or via Docker
 2. **Build**: `./gradlew clean bootJar`
 3. **Run**: Set environment variables and run JAR
 4. **Test**: `./gradlew test` (uses Testcontainers)
@@ -91,24 +88,24 @@ Key environment variables:
 - **JWT**: Self-contained tokens with RSA signing
 - **Client Types**: Both confidential and public clients supported
 
-## Database Schema
+## Database Collections
 
-Managed by Liquibase with changesets for:
-- SAS standard tables (oauth2_authorization, oauth2_client, etc.)
-- Users and authorities tables
-- Custom indexes and constraints
-- Type adjustments for SAS 1.5.x compatibility
+Mongo collections include:
+- `users`
+- `oauth2_registered_client`
+- `oauth2_authorization`
+- `oauth2_authorization_consent`
 
 ## Testing
 
 - **Unit Tests**: Standard Spring Boot test slices
-- **Integration Tests**: Testcontainers for PostgreSQL
+- **Integration Tests**: Testcontainers for MongoDB
 - **OAuth2 Flows**: PKCE, refresh token, introspection, revocation
 
 ## Правила написания тестов
 
-- Docker/Testcontainers считаем обязательным условием: тесты, которые зависят от БД, пишем только через **Testcontainers + PostgreSQL** (не через H2).
-- Предпочитаемый шаблон: `@SpringBootTest` + `@Testcontainers` + `@ServiceConnection` со статическим `PostgreSQLContainer`.
+- Docker/Testcontainers считаем обязательным условием: тесты, которые зависят от БД, пишем только через **Testcontainers + MongoDB**.
+- Предпочитаемый шаблон: `@SpringBootTest` + `@Testcontainers` + `@ServiceConnection` со статическим `MongoDBContainer`.
 - Если добавляешь новые тесты, не делай “псевдотесты” без проверяемого контракта (например, перф/рейткеп-тесты без assert) — лучше меньше, но e2e по реальному флоу.
 - Для локальных окружений может понадобиться `src/test/resources/docker-java.properties` (настройка клиента Docker для Testcontainers).
 - В прод-коде не добавляем тестовые флаги/клиентов/эндпоинты “для e2e”: локальный e2e запускаем **как в проде**, меняя только env запуска контейнеров.
@@ -120,7 +117,7 @@ When working on this project, you might be asked to:
 1. **Add new OAuth2 clients**: Modify ClientInitializer
 2. **Extend user registration**: Update RegistrationController/Service
 3. **Add custom endpoints**: Create new controllers
-4. **Database changes**: Create new Liquibase changesets
+4. **Database changes**: Update Mongo documents/repositories and indexes
 5. **Security modifications**: Adjust SecurityConfig
 6. **Testing**: Add or modify test cases
 7. **Configuration**: Update application.yml or environment handling
@@ -129,7 +126,7 @@ When working on this project, you might be asked to:
 
 - Always use the existing package structure (`ru.gera.auth`)
 - Follow Spring Security best practices
-- Use Liquibase for any database schema changes
+- Use Spring Data MongoDB patterns for persistence changes
 - Maintain backward compatibility when possible
 - Include appropriate tests for new functionality
 - Update OpenAPI documentation for new endpoints

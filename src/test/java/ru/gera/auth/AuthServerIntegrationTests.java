@@ -11,10 +11,9 @@ import org.springframework.security.oauth2.server.authorization.client.Registere
 import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.output.Slf4jLogConsumer;
 import org.testcontainers.junit.jupiter.Container;
-import java.util.Map;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.containers.MongoDBContainer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -31,15 +30,8 @@ class AuthServerIntegrationTests {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(
-            DockerImageName.parse("postgres:16"))
-            .withDatabaseName("test")
-            .withUsername("test")
-            .withPassword("test")
-            .withEnv("PGDATA", "/var/lib/postgresql/data")
-            .withTmpFs(Map.of(
-                    "/var/lib/postgresql/data", "rw,size=256m"
-            ))
+    static MongoDBContainer mongo = new MongoDBContainer(
+            DockerImageName.parse("mongo:7"))
             .withStartupTimeout(java.time.Duration.ofMinutes(5))
             .waitingFor(org.testcontainers.containers.wait.strategy.Wait.forListeningPort())
             .withLogConsumer(new Slf4jLogConsumer(LoggerFactory.getLogger(AuthServerIntegrationTests.class)));
@@ -58,13 +50,13 @@ class AuthServerIntegrationTests {
      * Это подтверждает корректную работу Liquibase и схемы security таблиц.
      */
     @Test
-    @DisplayName("Инициализация пользователя admin (Liquibase)")
+    @DisplayName("Инициализация bootstrap-пользователя admin")
     void adminUserIsInitialized() {
         var admin = users.findById("admin");
         assertThat(admin).isPresent();
         assertThat(admin.get().isEnabled()).isTrue();
         // Password matches encoder configuration
-        assertThat(passwordEncoder.matches("admin", admin.get().getPassword())).isTrue();
+        assertThat(passwordEncoder.matches("Admin123!", admin.get().getPassword())).isTrue();
     }
 
     /**

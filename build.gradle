@@ -20,16 +20,13 @@ repositories {
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-security'
-    implementation 'org.springframework.boot:spring-boot-starter-data-jdbc'
+    implementation 'org.springframework.boot:spring-boot-starter-data-mongodb'
+    implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0'
-    implementation 'org.liquibase:liquibase-core'
 
     // Spring Authorization Server
     implementation 'org.springframework.security:spring-security-oauth2-authorization-server:1.5.2'
-
-    // JDBC driver
-    runtimeOnly 'org.postgresql:postgresql'
 
     // Actuator (optional)
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
@@ -38,8 +35,7 @@ dependencies {
     testImplementation 'org.springframework.security:spring-security-test'
     testImplementation 'org.springframework.boot:spring-boot-testcontainers'
     testImplementation 'org.testcontainers:junit-jupiter'
-    testImplementation 'org.testcontainers:postgresql'
-    testImplementation 'com.h2database:h2'
+    testImplementation 'org.testcontainers:mongodb'
 }
 
 test {

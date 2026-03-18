@@ -28,25 +28,40 @@ public class ClientInitializer implements CommandLineRunner {
     @Value("${app.spa.post-logout-uri:http://localhost:5173/}") String spaPostLogout;
 
     @Override public void run(String... args) {
-        if (clients.findByClientId(spaClientId) == null) {
-            var rc = RegisteredClient.withId(UUID.randomUUID().toString())
-                    .clientId(spaClientId)
-                    .clientAuthenticationMethod(ClientAuthenticationMethod.NONE)
-                    .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-                    .redirectUri(spaRedirect)
-                    .postLogoutRedirectUri(spaPostLogout)
-                    .scope(OidcScopes.OPENID)
-                    .scope(OidcScopes.PROFILE)
-                    .scope("api.read")
-                    .clientSettings(ClientSettings.builder()
-                            .requireProofKey(true)
-                            .requireAuthorizationConsent(true)
-                            .build())
-                    .tokenSettings(TokenSettings.builder()
-                            .accessTokenTimeToLive(Duration.ofMinutes(60))
-                            .build())
-                    .build();
-            clients.save(rc);
+        var existing = clients.findByClientId(spaClientId);
+        if (existing == null) {
+            clients.save(buildSpaClient(UUID.randomUUID().toString(), spaClientId, spaRedirect, spaPostLogout));
+            return;
         }
+
+        boolean requiresUpdate = !existing.getRedirectUris().contains(spaRedirect)
+                || !existing.getPostLogoutRedirectUris().contains(spaPostLogout);
+
+        if (requiresUpdate) {
+            clients.save(buildSpaClient(existing.getId(), spaClientId, spaRedirect, spaPostLogout));
+        }
+    }
+
+    private static RegisteredClient buildSpaClient(String id,
+                                                   String clientId,
+                                                   String redirect,
+                                                   String postLogoutRedirect) {
+        return RegisteredClient.withId(id)
+                .clientId(clientId)
+                .clientAuthenticationMethod(ClientAuthenticationMethod.NONE)
+                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+                .redirectUri(redirect)
+                .postLogoutRedirectUri(postLogoutRedirect)
+                .scope(OidcScopes.OPENID)
+                .scope(OidcScopes.PROFILE)
+                .scope("api.read")
+                .clientSettings(ClientSettings.builder()
+                        .requireProofKey(true)
+                        .requireAuthorizationConsent(true)
+                        .build())
+                .tokenSettings(TokenSettings.builder()
+                        .accessTokenTimeToLive(Duration.ofMinutes(60))
+                        .build())
+                .build();
     }
 }

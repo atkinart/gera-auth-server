@@ -1,15 +1,25 @@
 package ru.gera.auth.user;
 
 import org.springframework.data.annotation.Id;
-import org.springframework.data.relational.core.mapping.Table;
+import org.springframework.data.mongodb.core.index.Indexed;
+import org.springframework.data.mongodb.core.mapping.Document;
 
-@Table("users")
+import java.util.LinkedHashSet;
+import java.util.Set;
+
+@Document("users")
 public class UserEntity {
     @Id
     private String username;
+
     private String password;
+
     private boolean enabled;
-    private String email; // optional, unique
+
+    @Indexed(unique = true)
+    private String email;
+
+    private Set<String> roles = new LinkedHashSet<>();
 
     public UserEntity() {}
 
@@ -30,4 +40,12 @@ public class UserEntity {
 
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
+
+    public Set<String> getRoles() {
+        return roles;
+    }
+
+    public void setRoles(Set<String> roles) {
+        this.roles = roles == null ? new LinkedHashSet<>() : new LinkedHashSet<>(roles);
+    }
 }

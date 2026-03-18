@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>GERA Auth - Signup</title>
+  <link rel="stylesheet" href="/auth-ui.css">
+  <script defer src="/auth-signup.js"></script>
+</head>
+<body class="auth-shell">
+  <main class="auth-layout single">
+    <section class="auth-card">
+      <h2>Регистрация</h2>
+      <p class="subtext">Создайте локальную учетную запись</p>
+
+      <form id="signup-form" class="auth-form">
+        <label>
+          Username
+          <input type="text" name="username" minlength="3" maxlength="50" pattern="^[a-zA-Z0-9._-]+$" required>
+        </label>
+        <label>
+          Email
+          <input type="email" name="email" maxlength="255" required>
+        </label>
+        <label>
+          Password
+          <input type="password" name="password" minlength="8" maxlength="100" required>
+        </label>
+        <button type="submit">Создать аккаунт</button>
+      </form>
+
+      <div id="signup-result" class="notice" hidden></div>
+
+      <p class="footnote">
+        Уже есть аккаунт? <a href="/login">Вернуться ко входу</a>
+      </p>
+    </section>
+  </main>
+</body>
+</html>

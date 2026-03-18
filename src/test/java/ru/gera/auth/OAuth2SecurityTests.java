@@ -13,7 +13,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.containers.MongoDBContainer;
 import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.output.Slf4jLogConsumer;
 import org.testcontainers.junit.jupiter.Container;
@@ -49,15 +49,8 @@ class OAuth2SecurityTests {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(
-            DockerImageName.parse("postgres:16"))
-            .withDatabaseName("test")
-            .withUsername("test")
-            .withPassword("test")
-            .withEnv("PGDATA", "/var/lib/postgresql/data")
-            .withTmpFs(Map.of(
-                    "/var/lib/postgresql/data", "rw,size=256m"
-            ))
+    static MongoDBContainer mongo = new MongoDBContainer(
+            DockerImageName.parse("mongo:7"))
             .withStartupTimeout(java.time.Duration.ofMinutes(5))
             .waitingFor(org.testcontainers.containers.wait.strategy.Wait.forListeningPort())
             .withLogConsumer(new Slf4jLogConsumer(LoggerFactory.getLogger(OAuth2SecurityTests.class)));
@@ -83,7 +76,7 @@ class OAuth2SecurityTests {
     }
 
     private MvcResult loginAsAdmin() throws Exception {
-        return mvc.perform(formLogin().user("admin").password("admin"))
+        return mvc.perform(formLogin().user("admin").password("Admin123!"))
                 .andExpect(status().is3xxRedirection())
                 .andReturn();
     }

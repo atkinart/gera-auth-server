@@ -1,7 +1,11 @@
 package ru.gera.auth.user;
 
-import org.springframework.data.repository.CrudRepository;
+import org.springframework.data.mongodb.repository.MongoRepository;
 
-public interface UserRepository extends CrudRepository<UserEntity, String> {
+import java.util.Optional;
+
+public interface UserRepository extends MongoRepository<UserEntity, String> {
     boolean existsByEmail(String email);
+
+    Optional<UserEntity> findByUsername(String username);
 }

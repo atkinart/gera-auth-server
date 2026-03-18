@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>GERA Auth - Ошибка</title>
+  <link rel="stylesheet" href="/auth-ui.css">
+</head>
+<body class="auth-shell">
+  <main class="auth-layout single">
+    <section class="auth-card error-card">
+      <p class="brand-kicker">GERA Security</p>
+      <h2>Ошибка обработки запроса</h2>
+      <p class="subtext">Система не смогла завершить операцию. Проверьте параметры запроса и попробуйте снова.</p>
+
+      <div class="notice error">
+        <strong>Код:</strong> <span th:text="${status}">500</span>
+        <span th:if="${error != null and !#strings.isEmpty(error)}"> — <span th:text="${error}">Internal Server Error</span></span>
+      </div>
+
+      <dl class="error-meta">
+        <dt>Путь</dt>
+        <dd th:text="${path}">/error</dd>
+        <dt>Время</dt>
+        <dd th:text="${timestamp}">2026-03-18T00:00:00Z</dd>
+        <dt th:if="${message != null and !#strings.isEmpty(message)}">Сообщение</dt>
+        <dd th:if="${message != null and !#strings.isEmpty(message)}" th:text="${message}">Описание ошибки</dd>
+      </dl>
+
+      <div class="error-actions">
+        <a th:href="${@environment.getProperty('app.spa.post-logout-uri','http://localhost:8081/') + '?login=1'}" class="link-btn primary">Вернуться в UI и войти</a>
+        <a href="/login" class="link-btn">Открыть login</a>
+        <a href="/signup" class="link-btn">Регистрация</a>
+      </div>
+
+      <p class="footnote">Если проблема повторяется, вернитесь в UI и попробуйте вход заново.</p>
+    </section>
+  </main>
+</body>
+</html>

@@ -5,16 +5,27 @@ app:
   issuer: ${APP_ISSUER:http://localhost:9000}
   cors:
     origins: ${APP_CORS_ORIGINS:http://localhost:5173}
+  bootstrap:
+    users:
+      - username: ${APP_ADMIN_USERNAME:admin}
+        password: ${APP_ADMIN_PASSWORD:Admin123!}
+        email: ${APP_ADMIN_EMAIL:admin@example.com}
+        roles: ROLE_ADMIN,ROLE_USER
+      - username: ${APP_TEACHER_USERNAME:teacher}
+        password: ${APP_TEACHER_PASSWORD:Teacher123!}
+        email: ${APP_TEACHER_EMAIL:teacher@example.com}
+        roles: ROLE_TEACHER,ROLE_USER
+      - username: ${APP_STUDENT_USERNAME:student}
+        password: ${APP_STUDENT_PASSWORD:Student123!}
+        email: ${APP_STUDENT_EMAIL:student@example.com}
+        roles: ROLE_USER
 
 spring:
   application:
     name: gera-auth-server
-  datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/sas}
-    username: ${SPRING_DATASOURCE_USERNAME:sas}
-    password: ${SPRING_DATASOURCE_PASSWORD:sas}
-  liquibase:
-    change-log: classpath:db/changelog/db.changelog-master.yaml
+  data:
+    mongodb:
+      uri: ${MONGO_URI:${SPRING_DATA_MONGODB_URI:mongodb://localhost:27017/gera}}
 
 management:
   endpoints:

@@ -8,36 +8,41 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.Customizer;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsentService;
-import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
-import org.springframework.security.oauth2.server.authorization.client.JdbcRegisteredClientRepository;
-import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.oauth2.server.authorization.web.authentication.PublicClientAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
+import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import javax.sql.DataSource;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequestWrapper;
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
-import java.time.Duration;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Configuration
 @EnableWebSecurity
@@ -56,6 +61,10 @@ public class SecurityConfig {
                 .exceptionHandling(ex -> ex.defaultAuthenticationEntryPointFor(
                         new LoginUrlAuthenticationEntryPoint("/login"),
                         new MediaTypeRequestMatcher(MediaType.TEXT_HTML)))
+                .addFilterBefore(
+                        stripContinueParameterFilter(),
+                        org.springframework.security.web.context.SecurityContextHolderFilter.class
+                )
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
         return http.cors(Customizer.withDefaults()).build();
     }
@@ -66,14 +75,76 @@ public class SecurityConfig {
         http
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                        .requestMatchers("/error").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/login", "/signup", "/auth-ui.css", "/auth-signup.js").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/register").permitAll()
                         .requestMatchers(
                                 "/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**"
                         ).permitAll()
                         .anyRequest().authenticated())
                 .csrf(csrf -> csrf.ignoringRequestMatchers("/api/auth/register", "/v3/api-docs/**"))
-                .formLogin(Customizer.withDefaults());
+                .formLogin(form -> form.loginPage("/login").permitAll())
+                .logout(logout -> logout.logoutSuccessUrl("/login?logout").permitAll());
         return http.cors(Customizer.withDefaults()).build();
+    }
+
+    @Bean
+    OncePerRequestFilter stripContinueParameterFilter() {
+        return new OncePerRequestFilter() {
+            @Override
+            protected void doFilterInternal(HttpServletRequest request,
+                                            HttpServletResponse response,
+                                            FilterChain filterChain) throws ServletException, IOException {
+                if (!"/oauth2/authorize".equals(request.getServletPath()) || request.getParameter("continue") == null) {
+                    filterChain.doFilter(request, response);
+                    return;
+                }
+
+                var wrapped = new HttpServletRequestWrapper(request) {
+                    @Override
+                    public String getParameter(String name) {
+                        if ("continue".equals(name)) {
+                            return null;
+                        }
+                        return super.getParameter(name);
+                    }
+
+                    @Override
+                    public Map<String, String[]> getParameterMap() {
+                        Map<String, String[]> source = super.getParameterMap();
+                        Map<String, String[]> filtered = new LinkedHashMap<>(source);
+                        filtered.remove("continue");
+                        return Collections.unmodifiableMap(filtered);
+                    }
+
+                    @Override
+                    public Enumeration<String> getParameterNames() {
+                        return Collections.enumeration(getParameterMap().keySet());
+                    }
+
+                    @Override
+                    public String[] getParameterValues(String name) {
+                        if ("continue".equals(name)) {
+                            return null;
+                        }
+                        return super.getParameterValues(name);
+                    }
+
+                    @Override
+                    public String getQueryString() {
+                        String query = super.getQueryString();
+                        if (query == null || query.isBlank()) {
+                            return query;
+                        }
+                        return Arrays.stream(query.split("&"))
+                                .filter(part -> !"continue".equals(part) && !part.startsWith("continue="))
+                                .collect(Collectors.joining("&"));
+                    }
+                };
+
+                filterChain.doFilter(wrapped, response);
+            }
+        };
     }
 
     @Bean
@@ -89,28 +160,8 @@ public class SecurityConfig {
         return source;
     }
 
-    @Bean
-    org.springframework.security.provisioning.UserDetailsManager users(DataSource ds) {
-        return new org.springframework.security.provisioning.JdbcUserDetailsManager(ds);
-    }
-
     @Bean PasswordEncoder passwordEncoder() {
         return org.springframework.security.crypto.factory.PasswordEncoderFactories.createDelegatingPasswordEncoder();
-    }
-
-    @Bean RegisteredClientRepository registeredClientRepository(DataSource ds) {
-        var jdbc = new org.springframework.jdbc.core.JdbcTemplate(ds);
-        return new JdbcRegisteredClientRepository(jdbc);
-    }
-
-    @Bean OAuth2AuthorizationService authorizationService(DataSource ds, RegisteredClientRepository r) {
-        var jdbc = new org.springframework.jdbc.core.JdbcTemplate(ds);
-        return new org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationService(jdbc, r);
-    }
-
-    @Bean OAuth2AuthorizationConsentService consentService(DataSource ds, RegisteredClientRepository r) {
-        var jdbc = new org.springframework.jdbc.core.JdbcTemplate(ds);
-        return new org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationConsentService(jdbc, r);
     }
 
     @Bean
